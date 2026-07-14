@@ -253,6 +253,35 @@ input[type=range]::-moz-range-thumb{
 }
 .motion-clear:hover{ color: var(--text-strong); }
 
+.checkbox-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:12px;
+  font-weight:500;
+  color: var(--text-strong);
+  margin: 4px 0 14px;
+  cursor:pointer;
+}
+.checkbox-row input{ width:14px; height:14px; accent-color: var(--accent); cursor:pointer; }
+
+.mini-select, .mini-input{
+  width:100%;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  color: var(--text-strong);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  outline:none;
+}
+.mini-select:disabled, .mini-input:disabled{ opacity:0.4; cursor:not-allowed; }
+
+.mini-row{ display:flex; gap:8px; margin: 10px 0 4px; }
+.mini-field{ flex:1; }
+.mini-field label{ display:block; font-size:10px; color: var(--text-dim); margin-bottom:4px; }
+
 .code-out{
   background: var(--panel-bg);
   border: 1px solid var(--border);
@@ -379,6 +408,24 @@ input[type=range]::-moz-range-thumb{
     <div class="motion-status" id="motion-status">Set A and B to enable playback</div>
     <button class="motion-clear" id="motion-clear-btn" style="display:none;">Clear A/B</button>
 
+    <div class="section-label">Per-letter</div>
+    <label class="checkbox-row">
+      <input type="checkbox" id="letter-enable">
+      <span>Vary one axis per letter</span>
+    </label>
+    <select class="mini-select" id="letter-axis-select" disabled></select>
+    <div class="mini-row">
+      <div class="mini-field">
+        <label for="letter-start">Start</label>
+        <input class="mini-input" type="number" id="letter-start" value="100" disabled>
+      </div>
+      <div class="mini-field">
+        <label for="letter-step">Step / letter</label>
+        <input class="mini-input" type="number" id="letter-step" value="50" disabled>
+      </div>
+    </div>
+    <div class="motion-status" id="letter-status"></div>
+
     <button class="advanced-toggle" id="advanced-toggle">Parametric axes (8) <span class="chev">▸</span></button>
     <div class="para-axes" id="para-axes">
       <div id="para-axes-inner"></div>
@@ -463,6 +510,11 @@ const speedVal    = document.getElementById('val-speed');
 const playBtn     = document.getElementById('play-btn');
 const motionStatus = document.getElementById('motion-status');
 const motionClearBtn = document.getElementById('motion-clear-btn');
+const letterEnable = document.getElementById('letter-enable');
+const letterAxisSelect = document.getElementById('letter-axis-select');
+const letterStart = document.getElementById('letter-start');
+const letterStep  = document.getElementById('letter-step');
+const letterStatus = document.getElementById('letter-status');
 
 let capturedA = null;
 let capturedB = null;
@@ -498,6 +550,14 @@ AXES.forEach(a => {
   });
 });
 updateSliderFill(sizeRange);
+
+AXES.forEach(a => {
+  const opt = document.createElement('option');
+  opt.value = a.tag;
+  opt.textContent = a.label + ' (' + a.tag + ')';
+  if (a.tag === 'wght') opt.selected = true;
+  letterAxisSelect.appendChild(opt);
+});
 
 PRESETS.forEach(p => {
   const btn = document.createElement('button');
@@ -551,15 +611,51 @@ function nearestWeightName(w){
   return best[1];
 }
 
-function buildFVS(){
-  return AXES.map(a => "'" + a.tag + "' " + formatNum(state[a.tag])).join(', ');
+function buildFVS(overrideTag, overrideVal){
+  return AXES.map(a => {
+    const v = (overrideTag && a.tag === overrideTag) ? overrideVal : state[a.tag];
+    return "'" + a.tag + "' " + formatNum(v);
+  }).join(', ');
+}
+
+function escapeHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderPerLetter(){
+  const axisTag = letterAxisSelect.value;
+  const axis = AXES.find(a => a.tag === axisTag);
+  const start = parseFloat(letterStart.value) || 0;
+  const step = parseFloat(letterStep.value) || 0;
+  const text = wordInput.value || ' ';
+  const chars = [...text];
+
+  specimen.innerHTML = chars.map((ch, i) => {
+    if (ch === ' ') return ' ';
+    const raw = start + step * i;
+    const clamped = Math.min(axis.max, Math.max(axis.min, raw));
+    const fvs = buildFVS(axisTag, clamped);
+    return '<span style="font-variation-settings:' + fvs + '">' + escapeHtml(ch) + '</span>';
+  }).join('');
+
+  const letterCount = chars.filter(c => c !== ' ').length;
+  const endRaw = start + step * (letterCount - 1);
+  const endClamped = Math.min(axis.max, Math.max(axis.min, endRaw));
+  const startClamped = Math.min(axis.max, Math.max(axis.min, start));
+  letterStatus.textContent = axis.label + ' runs ' + formatNum(startClamped) + ' → ' + formatNum(endClamped) + ' across ' + letterCount + ' letters';
 }
 
 function render(){
   const fvs = buildFVS();
   specimen.style.fontVariationSettings = fvs;
   specimen.style.fontSize = size + 'px';
-  specimen.textContent = wordInput.value || ' ';
+
+  if (letterEnable.checked) {
+    renderPerLetter();
+  } else {
+    specimen.textContent = wordInput.value || ' ';
+    letterStatus.textContent = '';
+  }
 
   caption.innerHTML =
     '<span>' + size + 'px · ' + nearestWeightName(state.wght) + ' ' + formatNum(state.wght) + '</span>' +
@@ -568,6 +664,7 @@ function render(){
     '<span>grade ' + formatNum(state.GRAD) + '</span>';
 
   codeOut.textContent =
+    (letterEnable.checked ? "/* Per-letter mode: '" + letterAxisSelect.value + "' overridden per character — see Per-letter controls */\n\n" : "") +
     "font-family: 'Roboto Flex';\n" +
     "font-optical-sizing: none;\n" +
     "font-variation-settings:\n  " + fvs.split(', ').join(',\n  ') + ";\n" +
@@ -582,6 +679,17 @@ sizeRange.addEventListener('input', () => {
   updateSliderFill(sizeRange);
   render();
 });
+
+letterEnable.addEventListener('change', () => {
+  const on = letterEnable.checked;
+  letterAxisSelect.disabled = !on;
+  letterStart.disabled = !on;
+  letterStep.disabled = !on;
+  render();
+});
+letterAxisSelect.addEventListener('change', render);
+letterStart.addEventListener('input', render);
+letterStep.addEventListener('input', render);
 
 advToggle.addEventListener('click', () => {
   advPanel.classList.toggle('open');
