@@ -232,6 +232,15 @@ input[type=range]::-moz-range-thumb{
   cursor:pointer;
 }
 .btn:hover{ border-color: var(--accent); background: #F9FAFB; }
+.btn:disabled{ opacity:0.4; cursor:not-allowed; }
+.btn:disabled:hover{ border-color: var(--border); background: var(--panel-bg); }
+.btn.captured{ border-color: var(--accent); background: #F3F4F6; }
+
+.motion-status{
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: 8px 0 4px;
+}
 
 .code-out{
   background: var(--panel-bg);
@@ -346,6 +355,18 @@ input[type=range]::-moz-range-thumb{
     <div class="section-label">Presets</div>
     <div class="presets" id="presets"></div>
 
+    <div class="section-label">Motion</div>
+    <div class="actions">
+      <button class="btn" id="capture-a-btn">Set A</button>
+      <button class="btn" id="capture-b-btn">Set B</button>
+    </div>
+    <div class="slider-row">
+      <div class="row-head"><span>Speed<span class="tag">sec / cycle</span></span><span class="val" id="val-speed">2</span></div>
+      <input type="range" id="range-speed" min="0.3" max="6" step="0.1" value="2">
+    </div>
+    <button class="btn btn-copy" id="play-btn" disabled>▶ Play</button>
+    <div class="motion-status" id="motion-status">Set A and B to enable playback</div>
+
     <button class="advanced-toggle" id="advanced-toggle">Parametric axes (8) <span class="chev">▸</span></button>
     <div class="para-axes" id="para-axes">
       <div id="para-axes-inner"></div>
@@ -423,6 +444,18 @@ const specimen    = document.getElementById('specimen-word');
 const caption     = document.getElementById('specimen-caption');
 const codeOut     = document.getElementById('code-out');
 const copyBtn     = document.getElementById('copy-btn');
+const captureABtn = document.getElementById('capture-a-btn');
+const captureBBtn = document.getElementById('capture-b-btn');
+const speedRange  = document.getElementById('range-speed');
+const speedVal    = document.getElementById('val-speed');
+const playBtn     = document.getElementById('play-btn');
+const motionStatus = document.getElementById('motion-status');
+
+let capturedA = null;
+let capturedB = null;
+let playing = false;
+let animRafId = null;
+let animStart = null;
 
 function renderAxisRow(axis){
   const row = document.createElement('div');
@@ -444,6 +477,7 @@ AXES.forEach(a => {
   const input = document.getElementById('range-' + a.tag);
   updateSliderFill(input);
   input.addEventListener('input', () => {
+    stopAnimation();
     state[a.tag] = parseFloat(input.value);
     document.getElementById('val-' + a.tag).textContent = formatNum(state[a.tag]);
     updateSliderFill(input);
@@ -471,6 +505,7 @@ function updateSliderFill(input){
 }
 
 function applyPreset(overrides){
+  stopAnimation();
   AXES.forEach(a => {
     state[a.tag] = (a.tag in overrides) ? overrides[a.tag] : a.def;
     const input = document.getElementById('range-' + a.tag);
@@ -482,6 +517,7 @@ function applyPreset(overrides){
 }
 
 function randomize(){
+  stopAnimation();
   AXES.forEach(a => {
     const v = a.min + Math.random() * (a.max - a.min);
     const stepped = Math.round(v / a.step) * a.step;
@@ -540,6 +576,7 @@ advToggle.addEventListener('click', () => {
 });
 
 document.getElementById('reset-btn').addEventListener('click', () => {
+  stopAnimation();
   applyPreset({});
   size = 120;
   sizeRange.value = 120;
@@ -550,6 +587,86 @@ document.getElementById('reset-btn').addEventListener('click', () => {
 });
 
 document.getElementById('random-btn').addEventListener('click', randomize);
+
+/* ---------------- Motion: A/B morph loop ---------------- */
+function captureSnapshot(){
+  const snap = {};
+  AXES.forEach(a => snap[a.tag] = state[a.tag]);
+  return snap;
+}
+
+function updateMotionUI(){
+  captureABtn.classList.toggle('captured', !!capturedA);
+  captureBBtn.classList.toggle('captured', !!capturedB);
+  captureABtn.textContent = capturedA ? 'Set A ✓' : 'Set A';
+  captureBBtn.textContent = capturedB ? 'Set B ✓' : 'Set B';
+  playBtn.disabled = !(capturedA && capturedB);
+  motionStatus.textContent = playing
+    ? 'Morphing between A and B on loop'
+    : (capturedA && capturedB ? 'Ready — press Play to morph between A and B' : 'Set A and B to enable playback');
+}
+
+captureABtn.addEventListener('click', () => {
+  stopAnimation();
+  capturedA = captureSnapshot();
+  updateMotionUI();
+});
+
+captureBBtn.addEventListener('click', () => {
+  stopAnimation();
+  capturedB = captureSnapshot();
+  updateMotionUI();
+});
+
+speedRange.addEventListener('input', () => {
+  speedVal.textContent = speedRange.value;
+});
+
+function applyAxisValues(values){
+  AXES.forEach(a => {
+    state[a.tag] = values[a.tag];
+    const input = document.getElementById('range-' + a.tag);
+    input.value = state[a.tag];
+    document.getElementById('val-' + a.tag).textContent = formatNum(state[a.tag]);
+    updateSliderFill(input);
+  });
+  render();
+}
+
+function animTick(timestamp){
+  if (!animStart) animStart = timestamp;
+  const elapsed = (timestamp - animStart) / 1000;
+  const halfCycle = parseFloat(speedRange.value);
+  const phase = (1 - Math.cos((elapsed / halfCycle) * Math.PI)) / 2;
+  const values = {};
+  AXES.forEach(a => {
+    values[a.tag] = capturedA[a.tag] + (capturedB[a.tag] - capturedA[a.tag]) * phase;
+  });
+  applyAxisValues(values);
+  if (playing) animRafId = requestAnimationFrame(animTick);
+}
+
+function stopAnimation(){
+  if (!playing) return;
+  playing = false;
+  if (animRafId) cancelAnimationFrame(animRafId);
+  animRafId = null;
+  playBtn.textContent = '▶ Play';
+  updateMotionUI();
+}
+
+playBtn.addEventListener('click', () => {
+  if (playing) {
+    stopAnimation();
+  } else {
+    if (!capturedA || !capturedB) return;
+    playing = true;
+    animStart = null;
+    playBtn.textContent = '⏸ Pause';
+    updateMotionUI();
+    animRafId = requestAnimationFrame(animTick);
+  }
+});
 
 copyBtn.addEventListener('click', () => {
   const text = codeOut.textContent;
