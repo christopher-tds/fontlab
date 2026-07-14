@@ -276,7 +276,6 @@ input[type=range]::-moz-range-thumb{
   position:relative;
   display:flex;
   flex-direction:column;
-  justify-content:space-between;
 }
 .specimen-card::before{
   content:"";
@@ -285,6 +284,10 @@ input[type=range]::-moz-range-thumb{
   background: rgba(17,24,39,0.08);
 }
 .specimen-word{
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
   font-family: 'Roboto Flex', sans-serif;
   font-optical-sizing: none;
   line-height: 1.05;
