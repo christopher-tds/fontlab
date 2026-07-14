@@ -110,7 +110,7 @@ body{
 }
 
 .field{ margin-bottom:16px; }
-.field label, .section-label{
+.field label{
   display:block;
   font-size: 11px;
   font-weight: 700;
@@ -193,7 +193,9 @@ input[type=range]::-moz-range-thumb{
 }
 .chip:hover{ border-color: var(--accent); }
 
-.advanced-toggle{
+.accordion{ border-top: 1px solid var(--border); margin: 4px 0 18px; }
+.accordion-item{ border-bottom: 1px solid var(--border); }
+.accordion-header{
   width:100%;
   display:flex; justify-content:space-between; align-items:center;
   background:none; border:none;
@@ -203,20 +205,19 @@ input[type=range]::-moz-range-thumb{
   font-size: 11px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  padding: 12px 2px;
-  margin-top: 6px;
+  padding: 14px 2px;
   cursor:pointer;
 }
-.advanced-toggle:hover{ color: var(--text-strong); }
-.advanced-toggle .chev{ transition: transform 150ms ease; color: var(--text-strong); }
-.advanced-toggle.open .chev{ transform: rotate(90deg); }
+.accordion-header:hover{ color: var(--text-strong); }
+.accordion-header .chev{ transition: transform 150ms ease; color: var(--text-strong); }
+.accordion-header.open .chev{ transform: rotate(90deg); }
 
-.para-axes{
+.accordion-body{
   max-height:0;
   overflow:hidden;
-  transition: max-height 180ms ease;
+  transition: max-height 220ms ease;
 }
-.para-axes.open{ max-height: 900px; padding-top: 14px; }
+.accordion-body.open{ max-height: 2000px; padding-bottom: 18px; }
 
 .actions{ display:flex; gap:8px; margin: 12px 0 6px; }
 .btn{
@@ -389,56 +390,80 @@ input[type=range]::-moz-range-thumb{
       <input type="range" id="range-size" min="24" max="180" step="1" value="120">
     </div>
 
-    <div class="section-label">Registered axes</div>
-    <div id="core-axes"></div>
-
-    <div class="section-label">Presets</div>
-    <div class="presets" id="presets"></div>
-
-    <div class="section-label">Motion</div>
-    <div class="actions">
-      <button class="btn" id="capture-a-btn">Set A</button>
-      <button class="btn" id="capture-b-btn">Set B</button>
-    </div>
-    <div class="slider-row">
-      <div class="row-head"><span>Speed<span class="tag">sec / cycle</span></span><span class="val" id="val-speed">2</span></div>
-      <input type="range" id="range-speed" min="0.3" max="6" step="0.1" value="2">
-    </div>
-    <button class="btn btn-copy" id="play-btn" disabled>▶ Play</button>
-    <div class="motion-status" id="motion-status">Set A and B to enable playback</div>
-    <button class="motion-clear" id="motion-clear-btn" style="display:none;">Clear A/B</button>
-
-    <div class="section-label">Per-letter</div>
-    <label class="checkbox-row">
-      <input type="checkbox" id="letter-enable">
-      <span>Vary one axis per letter</span>
-    </label>
-    <select class="mini-select" id="letter-axis-select" disabled></select>
-    <div class="mini-row">
-      <div class="mini-field">
-        <label for="letter-start">Start</label>
-        <input class="mini-input" type="number" id="letter-start" value="100" disabled>
-      </div>
-      <div class="mini-field">
-        <label for="letter-step">Step / letter</label>
-        <input class="mini-input" type="number" id="letter-step" value="50" disabled>
-      </div>
-    </div>
-    <div class="motion-status" id="letter-status"></div>
-
-    <button class="advanced-toggle" id="advanced-toggle">Parametric axes (8) <span class="chev">▸</span></button>
-    <div class="para-axes" id="para-axes">
-      <div id="para-axes-inner"></div>
-    </div>
-
     <div class="actions">
       <button class="btn" id="reset-btn">Reset</button>
       <button class="btn" id="random-btn">Randomize</button>
     </div>
 
-    <div class="section-label">CSS</div>
-    <pre class="code-out" id="code-out"></pre>
-    <button class="btn btn-copy" id="copy-btn">Copy CSS</button>
+    <div class="accordion">
+      <div class="accordion-item">
+        <button class="accordion-header open" data-target="acc-axes">Registered axes <span class="chev">▸</span></button>
+        <div class="accordion-body open" id="acc-axes">
+          <div id="core-axes"></div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <button class="accordion-header" data-target="acc-presets">Presets <span class="chev">▸</span></button>
+        <div class="accordion-body" id="acc-presets">
+          <div class="presets" id="presets"></div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <button class="accordion-header" data-target="acc-motion">Motion <span class="chev">▸</span></button>
+        <div class="accordion-body" id="acc-motion">
+          <div class="actions">
+            <button class="btn" id="capture-a-btn">Set A</button>
+            <button class="btn" id="capture-b-btn">Set B</button>
+          </div>
+          <div class="slider-row">
+            <div class="row-head"><span>Speed<span class="tag">sec / cycle</span></span><span class="val" id="val-speed">2</span></div>
+            <input type="range" id="range-speed" min="0.3" max="6" step="0.1" value="2">
+          </div>
+          <button class="btn btn-copy" id="play-btn" disabled>▶ Play</button>
+          <div class="motion-status" id="motion-status">Set A and B to enable playback</div>
+          <button class="motion-clear" id="motion-clear-btn" style="display:none;">Clear A/B</button>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <button class="accordion-header" data-target="acc-letter">Per-letter <span class="chev">▸</span></button>
+        <div class="accordion-body" id="acc-letter">
+          <label class="checkbox-row">
+            <input type="checkbox" id="letter-enable">
+            <span>Vary one axis per letter</span>
+          </label>
+          <select class="mini-select" id="letter-axis-select" disabled></select>
+          <div class="mini-row">
+            <div class="mini-field">
+              <label for="letter-start">Start</label>
+              <input class="mini-input" type="number" id="letter-start" value="100" disabled>
+            </div>
+            <div class="mini-field">
+              <label for="letter-step">Step / letter</label>
+              <input class="mini-input" type="number" id="letter-step" value="50" disabled>
+            </div>
+          </div>
+          <div class="motion-status" id="letter-status"></div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <button class="accordion-header" data-target="acc-parametric">Parametric axes (8) <span class="chev">▸</span></button>
+        <div class="accordion-body" id="acc-parametric">
+          <div id="para-axes-inner"></div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <button class="accordion-header" data-target="acc-css">CSS <span class="chev">▸</span></button>
+        <div class="accordion-body" id="acc-css">
+          <pre class="code-out" id="code-out"></pre>
+          <button class="btn btn-copy" id="copy-btn">Copy CSS</button>
+        </div>
+      </div>
+    </div>
 
     <div class="credit">
       Roboto Flex, designed by Google Fonts &amp; Font Bureau · SIL Open Font License ·
@@ -497,8 +522,6 @@ const sizeVal     = document.getElementById('val-size');
 const coreWrap    = document.getElementById('core-axes');
 const paraWrap    = document.getElementById('para-axes-inner');
 const presetsWrap = document.getElementById('presets');
-const advToggle   = document.getElementById('advanced-toggle');
-const advPanel    = document.getElementById('para-axes');
 const specimen    = document.getElementById('specimen-word');
 const caption     = document.getElementById('specimen-caption');
 const codeOut     = document.getElementById('code-out');
@@ -691,9 +714,19 @@ letterAxisSelect.addEventListener('change', render);
 letterStart.addEventListener('input', render);
 letterStep.addEventListener('input', render);
 
-advToggle.addEventListener('click', () => {
-  advPanel.classList.toggle('open');
-  advToggle.classList.toggle('open');
+const accordionHeaders = document.querySelectorAll('.accordion-header');
+accordionHeaders.forEach(header => {
+  header.addEventListener('click', () => {
+    const wasOpen = header.classList.contains('open');
+    accordionHeaders.forEach(h => {
+      h.classList.remove('open');
+      document.getElementById(h.dataset.target).classList.remove('open');
+    });
+    if (!wasOpen) {
+      header.classList.add('open');
+      document.getElementById(header.dataset.target).classList.add('open');
+    }
+  });
 });
 
 document.getElementById('reset-btn').addEventListener('click', () => {
