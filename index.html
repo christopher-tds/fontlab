@@ -293,6 +293,15 @@ input[type=range]::-moz-range-thumb{
 .mini-field{ flex:1; }
 .mini-field label{ display:block; font-size:10px; color: var(--text-dim); margin-bottom:4px; }
 
+.letter-editor{ border-top: 1px solid var(--border); margin-top: 14px; padding-top: 14px; }
+.letter-editor-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin: 0 0 8px;
+}
+.letter-editor-head span{ font-size:12px; font-weight:600; color: var(--text-strong); }
+
 .code-out{
   background: var(--panel-bg);
   border: 1px solid var(--border);
@@ -336,6 +345,23 @@ input[type=range]::-moz-range-thumb{
   overflow-wrap: anywhere;
   min-height: 1em;
   transition: font-variation-settings 90ms linear;
+}
+.specimen-word span{ cursor:pointer; }
+.specimen-word span:hover{
+  text-decoration: underline;
+  text-decoration-color: var(--text-dim);
+  text-underline-offset: 0.12em;
+}
+.specimen-word span.has-override{
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 0.12em;
+}
+.specimen-word span.selected{
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 0.12em;
 }
 
 @media (max-width: 860px){
@@ -387,11 +413,11 @@ input[type=range]::-moz-range-thumb{
       <div class="accordion-item">
         <button class="accordion-header" data-target="acc-letter">Per-letter <span class="chev">▸</span></button>
         <div class="accordion-body" id="acc-letter">
+          <select class="mini-select" id="letter-axis-select"></select>
           <label class="checkbox-row">
             <input type="checkbox" id="letter-enable">
-            <span>Vary one axis per letter</span>
+            <span>Vary this axis across all letters</span>
           </label>
-          <select class="mini-select" id="letter-axis-select" disabled></select>
           <div class="mini-row">
             <div class="mini-field">
               <label for="letter-start">Start</label>
@@ -403,6 +429,20 @@ input[type=range]::-moz-range-thumb{
             </div>
           </div>
           <div class="motion-status" id="letter-status"></div>
+
+          <div class="letter-editor">
+            <div class="motion-status" id="letter-editor-hint">Click any letter in the preview to fine-tune it individually on this axis.</div>
+            <div id="letter-editor-editing" style="display:none;">
+              <div class="letter-editor-head">
+                <span id="letter-editor-title"></span>
+                <button class="motion-clear" id="letter-clear-btn" style="display:none;">Clear override</button>
+              </div>
+              <div class="slider-row">
+                <div class="row-head"><span id="letter-override-label"></span><span class="val" id="letter-override-val">0</span></div>
+                <input type="range" id="letter-override-range">
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -512,12 +552,21 @@ const letterAxisSelect = document.getElementById('letter-axis-select');
 const letterStart = document.getElementById('letter-start');
 const letterStep  = document.getElementById('letter-step');
 const letterStatus = document.getElementById('letter-status');
+const letterEditorHint = document.getElementById('letter-editor-hint');
+const letterEditorEditing = document.getElementById('letter-editor-editing');
+const letterEditorTitle = document.getElementById('letter-editor-title');
+const letterClearBtn = document.getElementById('letter-clear-btn');
+const letterOverrideLabel = document.getElementById('letter-override-label');
+const letterOverrideVal = document.getElementById('letter-override-val');
+const letterOverrideRange = document.getElementById('letter-override-range');
 
 let capturedA = null;
 let capturedB = null;
 let playing = false;
 let animRafId = null;
 let animStart = null;
+let letterOverrides = {};
+let selectedLetterIndex = null;
 
 function renderAxisRow(axis){
   const row = document.createElement('div');
@@ -611,43 +660,129 @@ function escapeHtml(s){
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function renderPerLetter(){
-  const axisTag = letterAxisSelect.value;
-  const axis = AXES.find(a => a.tag === axisTag);
-  const start = parseFloat(letterStart.value) || 0;
-  const step = parseFloat(letterStep.value) || 0;
-  const text = wordInput.value || ' ';
-  const chars = [...text];
+function baseAxisValue(axisTag, index){
+  let v = state[axisTag];
+  if (letterEnable.checked && letterAxisSelect.value === axisTag) {
+    const axis = AXES.find(a => a.tag === axisTag);
+    const start = parseFloat(letterStart.value) || 0;
+    const step = parseFloat(letterStep.value) || 0;
+    v = Math.min(axis.max, Math.max(axis.min, start + step * index));
+  }
+  return v;
+}
 
+function effectiveAxisValue(axisTag, index){
+  const overridesForAxis = letterOverrides[axisTag];
+  if (overridesForAxis && index in overridesForAxis) return overridesForAxis[index];
+  return baseAxisValue(axisTag, index);
+}
+
+function buildLetterFVS(index){
+  return AXES.map(a => "'" + a.tag + "' " + formatNum(effectiveAxisValue(a.tag, index))).join(', ');
+}
+
+function currentLetterAxis(){
+  return AXES.find(a => a.tag === letterAxisSelect.value);
+}
+
+function renderSpecimenLetters(){
+  const chars = [...(wordInput.value || ' ')];
+  if (selectedLetterIndex !== null && selectedLetterIndex >= chars.length) {
+    selectedLetterIndex = null;
+  }
+  const activeAxis = letterAxisSelect.value;
+  const activeOverrides = letterOverrides[activeAxis] || {};
   specimen.innerHTML = chars.map((ch, i) => {
     if (ch === ' ') return ' ';
-    const raw = start + step * i;
-    const clamped = Math.min(axis.max, Math.max(axis.min, raw));
-    const fvs = buildFVS(axisTag, clamped);
-    return '<span style="font-variation-settings:' + fvs + '">' + escapeHtml(ch) + '</span>';
+    const fvs = buildLetterFVS(i);
+    let cls = '';
+    if (i in activeOverrides) cls += ' has-override';
+    if (i === selectedLetterIndex) cls += ' selected';
+    return '<span class="' + cls.trim() + '" data-idx="' + i + '" style="font-variation-settings:' + fvs + '">' + escapeHtml(ch) + '</span>';
   }).join('');
+}
 
-  const letterCount = chars.filter(c => c !== ' ').length;
-  const endRaw = start + step * (letterCount - 1);
-  const endClamped = Math.min(axis.max, Math.max(axis.min, endRaw));
+function updateLinearStatus(){
+  if (!letterEnable.checked) { letterStatus.textContent = ''; return; }
+  const axis = currentLetterAxis();
+  const start = parseFloat(letterStart.value) || 0;
+  const step = parseFloat(letterStep.value) || 0;
+  const letterCount = [...(wordInput.value || ' ')].filter(c => c !== ' ').length;
   const startClamped = Math.min(axis.max, Math.max(axis.min, start));
+  const endClamped = Math.min(axis.max, Math.max(axis.min, start + step * (letterCount - 1)));
   letterStatus.textContent = axis.label + ' runs ' + formatNum(startClamped) + ' → ' + formatNum(endClamped) + ' across ' + letterCount + ' letters';
 }
 
+function refreshLetterEditor(){
+  if (selectedLetterIndex == null) {
+    letterEditorEditing.style.display = 'none';
+    letterEditorHint.style.display = 'block';
+    return;
+  }
+  letterEditorHint.style.display = 'none';
+  letterEditorEditing.style.display = 'block';
+  const axis = currentLetterAxis();
+  const ch = [...(wordInput.value || ' ')][selectedLetterIndex];
+  letterEditorTitle.textContent = "Editing letter " + (selectedLetterIndex + 1) + ": '" + ch + "'";
+  letterOverrideLabel.innerHTML = axis.label + '<span class="tag">' + axis.tag + '</span>';
+  const val = effectiveAxisValue(axis.tag, selectedLetterIndex);
+  letterOverrideRange.min = axis.min;
+  letterOverrideRange.max = axis.max;
+  letterOverrideRange.step = axis.step;
+  letterOverrideRange.value = val;
+  letterOverrideVal.textContent = formatNum(val);
+  updateSliderFill(letterOverrideRange);
+  const hasOverride = !!(letterOverrides[axis.tag] && (selectedLetterIndex in letterOverrides[axis.tag]));
+  letterClearBtn.style.display = hasOverride ? 'inline' : 'none';
+}
+
+function selectLetter(index){
+  selectedLetterIndex = (selectedLetterIndex === index) ? null : index;
+  refreshLetterEditor();
+  render();
+}
+
+specimen.addEventListener('click', (e) => {
+  const span = e.target.closest('span[data-idx]');
+  if (!span) return;
+  selectLetter(parseInt(span.dataset.idx, 10));
+});
+
+letterOverrideRange.addEventListener('input', () => {
+  if (selectedLetterIndex == null) return;
+  const axis = currentLetterAxis();
+  if (!letterOverrides[axis.tag]) letterOverrides[axis.tag] = {};
+  letterOverrides[axis.tag][selectedLetterIndex] = parseFloat(letterOverrideRange.value);
+  letterOverrideVal.textContent = formatNum(parseFloat(letterOverrideRange.value));
+  updateSliderFill(letterOverrideRange);
+  letterClearBtn.style.display = 'inline';
+  render();
+});
+
+letterClearBtn.addEventListener('click', () => {
+  if (selectedLetterIndex == null) return;
+  const axis = currentLetterAxis();
+  if (letterOverrides[axis.tag]) delete letterOverrides[axis.tag][selectedLetterIndex];
+  refreshLetterEditor();
+  render();
+});
+
 function render(){
   const fvs = buildFVS();
-  specimen.style.fontVariationSettings = fvs;
   specimen.style.fontSize = size + 'px';
 
-  if (letterEnable.checked) {
-    renderPerLetter();
-  } else {
-    specimen.textContent = wordInput.value || ' ';
-    letterStatus.textContent = '';
-  }
+  renderSpecimenLetters();
+  updateLinearStatus();
+  refreshLetterEditor();
+
+  const hasManualOverrides = Object.values(letterOverrides).some(m => m && Object.keys(m).length > 0);
+  let note = '';
+  if (letterEnable.checked) note += "/* Per-letter mode: '" + letterAxisSelect.value + "' stepped per character */\n";
+  if (hasManualOverrides) note += "/* Some letters manually overridden — see Per-letter controls */\n";
+  if (note) note += '\n';
 
   codeOut.textContent =
-    (letterEnable.checked ? "/* Per-letter mode: '" + letterAxisSelect.value + "' overridden per character — see Per-letter controls */\n\n" : "") +
+    note +
     "font-family: 'Roboto Flex';\n" +
     "font-optical-sizing: none;\n" +
     "font-variation-settings:\n  " + fvs.split(', ').join(',\n  ') + ";\n" +
@@ -665,7 +800,6 @@ sizeRange.addEventListener('input', () => {
 
 letterEnable.addEventListener('change', () => {
   const on = letterEnable.checked;
-  letterAxisSelect.disabled = !on;
   letterStart.disabled = !on;
   letterStep.disabled = !on;
   render();
@@ -691,6 +825,7 @@ accordionHeaders.forEach(header => {
 
 document.getElementById('reset-btn').addEventListener('click', () => {
   stopAnimation();
+  selectedLetterIndex = null;
   applyPreset({});
   size = 120;
   sizeRange.value = 120;
@@ -855,26 +990,13 @@ async function buildSvgMarkup(){
     "unicode-range:" + f.unicodeRange + ";}"
   ).join('\n');
 
-  let textInner;
-  if (letterEnable.checked) {
-    const axisTag = letterAxisSelect.value;
-    const axis = AXES.find(a => a.tag === axisTag);
-    const start = parseFloat(letterStart.value) || 0;
-    const step = parseFloat(letterStep.value) || 0;
-    const chars = [...(wordInput.value || ' ')];
-    textInner = chars.map((ch, i) => {
-      if (ch === ' ') return ' ';
-      const raw = start + step * i;
-      const clamped = Math.min(axis.max, Math.max(axis.min, raw));
-      const fvs = buildFVS(axisTag, clamped);
-      return '<tspan style="font-variation-settings:' + fvs + '">' + escapeHtml(ch) + '</tspan>';
-    }).join('');
-  } else {
-    textInner = escapeHtml(wordInput.value || ' ');
-  }
+  const chars = [...(wordInput.value || ' ')];
+  const textInner = chars.map((ch, i) => {
+    if (ch === ' ') return ' ';
+    return '<tspan style="font-variation-settings:' + buildLetterFVS(i) + '">' + escapeHtml(ch) + '</tspan>';
+  }).join('');
 
-  const textStyle = "font-family:'Roboto Flex Export';font-size:" + size + "px;letter-spacing:-0.02em;" +
-    (letterEnable.checked ? '' : 'font-variation-settings:' + buildFVS() + ';');
+  const textStyle = "font-family:'Roboto Flex Export';font-size:" + size + "px;letter-spacing:-0.02em;";
 
   return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '">\n' +
     '<defs><style>' + fontFaceCSS + '</style></defs>\n' +
