@@ -241,6 +241,17 @@ input[type=range]::-moz-range-thumb{
   color: var(--text-dim);
   margin: 8px 0 4px;
 }
+.motion-clear{
+  background:none;
+  border:none;
+  padding:0;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-dim);
+  text-decoration: underline;
+  cursor:pointer;
+}
+.motion-clear:hover{ color: var(--text-strong); }
 
 .code-out{
   background: var(--panel-bg);
@@ -366,6 +377,7 @@ input[type=range]::-moz-range-thumb{
     </div>
     <button class="btn btn-copy" id="play-btn" disabled>▶ Play</button>
     <div class="motion-status" id="motion-status">Set A and B to enable playback</div>
+    <button class="motion-clear" id="motion-clear-btn" style="display:none;">Clear A/B</button>
 
     <button class="advanced-toggle" id="advanced-toggle">Parametric axes (8) <span class="chev">▸</span></button>
     <div class="para-axes" id="para-axes">
@@ -450,6 +462,7 @@ const speedRange  = document.getElementById('range-speed');
 const speedVal    = document.getElementById('val-speed');
 const playBtn     = document.getElementById('play-btn');
 const motionStatus = document.getElementById('motion-status');
+const motionClearBtn = document.getElementById('motion-clear-btn');
 
 let capturedA = null;
 let capturedB = null;
@@ -604,7 +617,15 @@ function updateMotionUI(){
   motionStatus.textContent = playing
     ? 'Morphing between A and B on loop'
     : (capturedA && capturedB ? 'Ready — press Play to morph between A and B' : 'Set A and B to enable playback');
+  motionClearBtn.style.display = (capturedA || capturedB) ? 'inline' : 'none';
 }
+
+motionClearBtn.addEventListener('click', () => {
+  stopAnimation();
+  capturedA = null;
+  capturedB = null;
+  updateMotionUI();
+});
 
 captureABtn.addEventListener('click', () => {
   stopAnimation();
