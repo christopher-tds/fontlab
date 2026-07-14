@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Generative Art — p5.js vs. GLSL Shader</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root{
+  --page-bg:#F0F0F0;
+  --panel-bg:#FFFFFF;
+  --border:#E5E7EB;
+  --text-strong:#111827;
+  --text-dim:#6B7280;
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+*{ box-sizing:border-box; }
+html,body{ margin:0; padding:0; background:var(--page-bg); }
+body{
+  font-family: var(--font-ui);
+  color: var(--text-strong);
+  min-height:100vh;
+  padding: 40px;
+}
+
+.header{ max-width: 980px; margin: 0 auto 28px; }
+.header h1{
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+}
+.header p{
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0;
+  line-height: 1.5;
+  max-width: 640px;
+}
+
+.grid{
+  max-width: 980px;
+  margin: 0 auto;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.card{
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 0;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.04);
+}
+
+@media (max-width: 760px){
+  .grid{ grid-template-columns: 1fr; }
+}
+.card h2{
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.card .tag{
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  display:block;
+}
+.card canvas{
+  display:block;
+  width:100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 6px;
+  background:#000;
+}
+.card p.caption{
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 12px 0 0;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Generative Art: Two Approaches</h1>
+  <p>Same idea — visuals produced by code, not drawn by hand — rendered two different ways. Left: p5.js, a particle system evaluated on the CPU. Right: a GLSL fragment shader, evaluated per-pixel on the GPU, in the style of a Shadertoy sketch.</p>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <span class="tag">p5.js · CPU · flow-field particles</span>
+    <h2>Particle Flow Field</h2>
+    <div id="p5-holder"></div>
+    <p class="caption">Thousands of particles drift along a Perlin-noise vector field, each step drawn as a translucent line. Classic Processing/p5.js generative-art technique.</p>
+  </div>
+
+  <div class="card">
+    <span class="tag">GLSL · GPU · fragment shader</span>
+    <h2>Shadertoy-style Shader</h2>
+    <canvas id="glsl-canvas"></canvas>
+    <p class="caption">Every pixel's color is computed independently, in parallel, from its screen position and elapsed time — no shapes or particles, just a per-pixel math function.</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<script>
+/* ---------------- p5.js: particle flow field ---------------- */
+new p5((p) => {
+  const SIZE = 500;
+  const particles = [];
+  const numParticles = 900;
+  const noiseScale = 0.006;
+
+  p.setup = () => {
+    const canvas = p.createCanvas(SIZE, SIZE);
+    canvas.parent('p5-holder');
+    p.background(10);
+    for (let i = 0; i < numParticles; i++) {
+      particles.push({ x: p.random(SIZE), y: p.random(SIZE) });
+    }
+  };
+
+  p.draw = () => {
+    p.noStroke();
+    p.fill(10, 12, 16, 12);
+    p.rect(0, 0, SIZE, SIZE);
+
+    for (const pt of particles) {
+      const angle = p.noise(pt.x * noiseScale, pt.y * noiseScale, p.frameCount * 0.003) * p.TWO_PI * 2;
+      const vx = Math.cos(angle), vy = Math.sin(angle);
+      p.stroke(230, 235, 245, 60);
+      p.strokeWeight(1);
+      p.point(pt.x, pt.y);
+      pt.x += vx * 1.4;
+      pt.y += vy * 1.4;
+      if (pt.x < 0) pt.x = SIZE;
+      if (pt.x > SIZE) pt.x = 0;
+      if (pt.y < 0) pt.y = SIZE;
+      if (pt.y > SIZE) pt.y = 0;
+    }
+  };
+});
+
+/* ---------------- GLSL: Shadertoy-style fragment shader ---------------- */
+(() => {
+  const canvas = document.getElementById('glsl-canvas');
+  const SIZE = 500;
+  canvas.width = SIZE;
+  canvas.height = SIZE;
+  const gl = canvas.getContext('webgl');
+
+  const vertSrc = `
+    attribute vec2 a_pos;
+    void main(){ gl_Position = vec4(a_pos, 0.0, 1.0); }
+  `;
+  const fragSrc = `
+    precision highp float;
+    uniform float iTime;
+    uniform vec2 iResolution;
+    void main(){
+      vec2 uv = gl_FragCoord.xy / iResolution.xy;
+      vec3 col = 0.5 + 0.5 * cos(iTime + uv.xyx * 6.0 + vec3(0.0, 2.0, 4.0));
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `;
+
+  function compile(type, src){
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    return s;
+  }
+
+  const program = gl.createProgram();
+  gl.attachShader(program, compile(gl.VERTEX_SHADER, vertSrc));
+  gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragSrc));
+  gl.linkProgram(program);
+  gl.useProgram(program);
+
+  const quad = new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+
+  const posLoc = gl.getAttribLocation(program, 'a_pos');
+  gl.enableVertexAttribArray(posLoc);
+  gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+  const timeLoc = gl.getUniformLocation(program, 'iTime');
+  const resLoc = gl.getUniformLocation(program, 'iResolution');
+  gl.uniform2f(resLoc, SIZE, SIZE);
+
+  const start = performance.now();
+  function frame(){
+    const t = (performance.now() - start) / 1000;
+    gl.uniform1f(timeLoc, t);
+    gl.viewport(0, 0, SIZE, SIZE);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+</script>
+</body>
+</html>
