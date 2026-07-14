@@ -219,6 +219,16 @@ input[type=range]::-moz-range-thumb{
 }
 .accordion-body.open{ max-height: 2000px; padding-bottom: 18px; }
 
+.pinned-section{ margin-top: 4px; }
+.pinned-label{
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 0 0 10px;
+}
+
 .actions{ display:flex; gap:8px; margin: 12px 0 6px; }
 .btn{
   flex:1;
@@ -314,30 +324,9 @@ input[type=range]::-moz-range-thumb{
   justify-content:center;
   padding: 48px 40px;
 }
-.specimen-card{
-  background: var(--card-bg);
-  color: var(--text-strong);
-  width:100%;
-  max-width: 640px;
-  aspect-ratio: 1 / 1;
-  padding: 32px 48px;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.04);
-  position:relative;
-  display:flex;
-  flex-direction:column;
-}
-.specimen-card::before{
-  content:"";
-  position:absolute; top:32px; left:48px; right:48px;
-  height:1px;
-  background: rgba(17,24,39,0.08);
-}
 .specimen-word{
-  flex:1;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  max-width: 100%;
+  color: var(--text-strong);
   font-family: 'Roboto Flex', sans-serif;
   font-optical-sizing: none;
   line-height: 1.05;
@@ -348,26 +337,11 @@ input[type=range]::-moz-range-thumb{
   min-height: 1em;
   transition: font-variation-settings 90ms linear;
 }
-.specimen-caption{
-  margin-top: 22px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(17,24,39,0.08);
-  font-family: var(--font-ui);
-  font-weight: 600;
-  font-size: 12px;
-  letter-spacing: 0;
-  color: var(--text-meta);
-  display:flex;
-  justify-content:space-between;
-  flex-wrap:wrap;
-  gap: 6px 14px;
-}
 
 @media (max-width: 860px){
   .app{ flex-direction:column; }
   .panel{ width:100%; max-height:none; position:relative; }
   .stage{ padding: 28px 18px; }
-  .specimen-card{ padding: 28px 22px; }
 }
 </style>
 </head>
@@ -404,26 +378,9 @@ input[type=range]::-moz-range-thumb{
       </div>
 
       <div class="accordion-item">
-        <button class="accordion-header" data-target="acc-presets">Presets <span class="chev">▸</span></button>
-        <div class="accordion-body" id="acc-presets">
-          <div class="presets" id="presets"></div>
-        </div>
-      </div>
-
-      <div class="accordion-item">
-        <button class="accordion-header" data-target="acc-motion">Motion <span class="chev">▸</span></button>
-        <div class="accordion-body" id="acc-motion">
-          <div class="actions">
-            <button class="btn" id="capture-a-btn">Set A</button>
-            <button class="btn" id="capture-b-btn">Set B</button>
-          </div>
-          <div class="slider-row">
-            <div class="row-head"><span>Speed<span class="tag">sec / cycle</span></span><span class="val" id="val-speed">2</span></div>
-            <input type="range" id="range-speed" min="0.3" max="6" step="0.1" value="2">
-          </div>
-          <button class="btn btn-copy" id="play-btn" disabled>▶ Play</button>
-          <div class="motion-status" id="motion-status">Set A and B to enable playback</div>
-          <button class="motion-clear" id="motion-clear-btn" style="display:none;">Clear A/B</button>
+        <button class="accordion-header" data-target="acc-parametric">Parametric axes (8) <span class="chev">▸</span></button>
+        <div class="accordion-body" id="acc-parametric">
+          <div id="para-axes-inner"></div>
         </div>
       </div>
 
@@ -450,9 +407,9 @@ input[type=range]::-moz-range-thumb{
       </div>
 
       <div class="accordion-item">
-        <button class="accordion-header" data-target="acc-parametric">Parametric axes (8) <span class="chev">▸</span></button>
-        <div class="accordion-body" id="acc-parametric">
-          <div id="para-axes-inner"></div>
+        <button class="accordion-header" data-target="acc-presets">Presets <span class="chev">▸</span></button>
+        <div class="accordion-body" id="acc-presets">
+          <div class="presets" id="presets"></div>
         </div>
       </div>
 
@@ -464,16 +421,31 @@ input[type=range]::-moz-range-thumb{
         </div>
       </div>
 
-      <div class="accordion-item">
-        <button class="accordion-header" data-target="acc-export">Export SVG <span class="chev">▸</span></button>
-        <div class="accordion-body" id="acc-export">
+      <div class="accordion-item" style="display:none;">
+        <button class="accordion-header" data-target="acc-motion">Motion <span class="chev">▸</span></button>
+        <div class="accordion-body" id="acc-motion">
           <div class="actions">
-            <button class="btn" id="copy-svg-btn">Copy SVG</button>
-            <button class="btn" id="download-svg-btn">Download SVG</button>
+            <button class="btn" id="capture-a-btn">Set A</button>
+            <button class="btn" id="capture-b-btn">Set B</button>
           </div>
-          <div class="motion-status" id="export-status">Exports the current specimen as a standalone SVG with the font embedded — renders anywhere, no internet needed.</div>
+          <div class="slider-row">
+            <div class="row-head"><span>Speed<span class="tag">sec / cycle</span></span><span class="val" id="val-speed">2</span></div>
+            <input type="range" id="range-speed" min="0.3" max="6" step="0.1" value="2">
+          </div>
+          <button class="btn btn-copy" id="play-btn" disabled>▶ Play</button>
+          <div class="motion-status" id="motion-status">Set A and B to enable playback</div>
+          <button class="motion-clear" id="motion-clear-btn" style="display:none;">Clear A/B</button>
         </div>
       </div>
+    </div>
+
+    <div class="pinned-section">
+      <div class="pinned-label">Export SVG</div>
+      <div class="actions">
+        <button class="btn" id="copy-svg-btn">Copy SVG</button>
+        <button class="btn" id="download-svg-btn">Download SVG</button>
+      </div>
+      <div class="motion-status" id="export-status">Exports the current specimen as a standalone SVG with the font embedded — renders anywhere, no internet needed.</div>
     </div>
 
     <div class="credit">
@@ -483,10 +455,7 @@ input[type=range]::-moz-range-thumb{
   </aside>
 
   <main class="stage">
-    <div class="specimen-card">
-      <div class="specimen-word" id="specimen-word">Flexible</div>
-      <div class="specimen-caption" id="specimen-caption"></div>
-    </div>
+    <div class="specimen-word" id="specimen-word">Flexible</div>
   </main>
 </div>
 
@@ -518,11 +487,6 @@ const PRESETS = [
   { name:'Oblique',        v:{ wght:300, slnt:-10 } },
 ];
 
-const WEIGHT_NAMES = [
-  [100,'Thin'],[200,'ExtraLight'],[300,'Light'],[400,'Regular'],[500,'Medium'],
-  [600,'SemiBold'],[700,'Bold'],[800,'ExtraBold'],[900,'Black'],[1000,'ExtraBlack']
-];
-
 let state = {};
 AXES.forEach(a => state[a.tag] = a.def);
 let size = 120;
@@ -534,7 +498,6 @@ const coreWrap    = document.getElementById('core-axes');
 const paraWrap    = document.getElementById('para-axes-inner');
 const presetsWrap = document.getElementById('presets');
 const specimen    = document.getElementById('specimen-word');
-const caption     = document.getElementById('specimen-caption');
 const codeOut     = document.getElementById('code-out');
 const copyBtn     = document.getElementById('copy-btn');
 const captureABtn = document.getElementById('capture-a-btn');
@@ -637,14 +600,6 @@ function randomize(){
   render();
 }
 
-function nearestWeightName(w){
-  let best = WEIGHT_NAMES[0];
-  WEIGHT_NAMES.forEach(pair => {
-    if (Math.abs(w - pair[0]) < Math.abs(w - best[0])) best = pair;
-  });
-  return best[1];
-}
-
 function buildFVS(overrideTag, overrideVal){
   return AXES.map(a => {
     const v = (overrideTag && a.tag === overrideTag) ? overrideVal : state[a.tag];
@@ -690,12 +645,6 @@ function render(){
     specimen.textContent = wordInput.value || ' ';
     letterStatus.textContent = '';
   }
-
-  caption.innerHTML =
-    '<span>' + size + 'px · ' + nearestWeightName(state.wght) + ' ' + formatNum(state.wght) + '</span>' +
-    '<span>' + formatNum(state.wdth) + '% width</span>' +
-    '<span>opsz ' + formatNum(state.opsz) + '</span>' +
-    '<span>grade ' + formatNum(state.GRAD) + '</span>';
 
   codeOut.textContent =
     (letterEnable.checked ? "/* Per-letter mode: '" + letterAxisSelect.value + "' overridden per character — see Per-letter controls */\n\n" : "") +
